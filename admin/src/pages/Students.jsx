@@ -246,10 +246,9 @@ export default function Students() {
           <div className="form-row">
             <input
               name="enrollment_no"
-              placeholder="Enrollment No"
+              placeholder="Enrollment No (auto)"
               value={form.enrollment_no}
               onChange={handleChange}
-              required={!editingId}
             />
             <input
               name="name"

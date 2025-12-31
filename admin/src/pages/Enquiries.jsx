@@ -28,6 +28,10 @@ export default function Enquiries() {
   };
 
   const handleConvert = async (enquiry) => {
+    const confirmConvert = window.confirm(
+      "Convert this enquiry to a student? You can add full details after conversion."
+    );
+    if (!confirmConvert) return;
     try {
       await api.post("/students", {
         name: enquiry.name,

@@ -1,5 +1,6 @@
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
+from random import randint
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -55,6 +56,17 @@ def _parse_date(value: str | None) -> date | None:
     return date.fromisoformat(value)
 
 
+def _generate_enrollment_no(db: Session) -> str:
+    date_part = datetime.utcnow().strftime("%Y%m%d")
+    for _ in range(10):
+        suffix = randint(1000, 9999)
+        candidate = f"PRG-{date_part}-{suffix}"
+        exists = db.query(Student).filter(Student.enrollment_no == candidate).first()
+        if not exists:
+            return candidate
+    raise HTTPException(status_code=500, detail="Unable to generate enrollment number")
+
+
 @router.get("/", response_model=list[StudentOut])
 def list_students(db: Session = Depends(get_db)):
     return db.query(Student).order_by(Student.id.desc()).all()
@@ -70,7 +82,16 @@ def get_student(student_id: int, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=StudentOut)
 def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
-    student = Student(**payload.dict())
+    data = payload.dict()
+    enrollment_no = (data.get("enrollment_no") or "").strip() or None
+    if enrollment_no:
+        existing = db.query(Student).filter(Student.enrollment_no == enrollment_no).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Enrollment number already exists")
+        data["enrollment_no"] = enrollment_no
+    else:
+        data["enrollment_no"] = _generate_enrollment_no(db)
+    student = Student(**data)
     db.add(student)
     db.commit()
     db.refresh(student)
@@ -92,12 +113,17 @@ def create_student_with_photo(
     status: str = Form("active"),
     db: Session = Depends(get_db),
 ):
-    if not enrollment_no:
-        raise HTTPException(status_code=400, detail="Enrollment number is required")
     if not father_name:
         raise HTTPException(status_code=400, detail="Father name is required")
     if not dob:
         raise HTTPException(status_code=400, detail="DOB is required")
+    enrollment_no = (enrollment_no or "").strip() or None
+    if enrollment_no:
+        existing = db.query(Student).filter(Student.enrollment_no == enrollment_no).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Enrollment number already exists")
+    else:
+        enrollment_no = _generate_enrollment_no(db)
     photo_url = _save_student_photo(photo)
     student = Student(
         enrollment_no=enrollment_no,
