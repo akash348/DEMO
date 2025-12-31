@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 export default function Enquiries() {
   const [enquiries, setEnquiries] = useState([]);
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const [viewEnquiry, setViewEnquiry] = useState(null);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
 
   const fetchEnquiries = async () => {
     const response = await api.get("/enquiries");
@@ -18,36 +25,45 @@ export default function Enquiries() {
   }, []);
 
   const handleDelete = async (enquiryId) => {
-    if (!window.confirm("Delete this enquiry?")) return;
-    try {
-      await api.delete(`/enquiries/${enquiryId}`);
-      await fetchEnquiries();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete enquiry." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Delete enquiry?",
+      message: "This action will permanently remove the enquiry.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/enquiries/${enquiryId}`);
+          await fetchEnquiries();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete enquiry." });
+        }
+      }
+    });
   };
 
   const handleConvert = async (enquiry) => {
-    const confirmConvert = window.confirm(
-      "Convert this enquiry to a student? You can add full details after conversion."
-    );
-    if (!confirmConvert) return;
-    try {
-      await api.post("/students", {
-        name: enquiry.name,
-        phone: enquiry.phone,
-        email: enquiry.email || null,
-        address: null,
-        course_id: null,
-        join_date: null,
-        status: "active"
-      });
-      await api.delete(`/enquiries/${enquiry.id}`);
-      await fetchEnquiries();
-      setStatus({ state: "success", message: "Enquiry converted to student." });
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to convert enquiry." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Convert enquiry?",
+      message: "This will create a student record from the enquiry details.",
+      onConfirm: async () => {
+        try {
+          await api.post("/students", {
+            name: enquiry.name,
+            phone: enquiry.phone,
+            email: enquiry.email || null,
+            address: null,
+            course_id: null,
+            join_date: null,
+            status: "active"
+          });
+          await api.delete(`/enquiries/${enquiry.id}`);
+          await fetchEnquiries();
+          setStatus({ state: "success", message: "Enquiry converted to student." });
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to convert enquiry." });
+        }
+      }
+    });
   };
 
   return (
@@ -129,6 +145,18 @@ export default function Enquiries() {
           )}
         </tbody>
       </table>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
     </div>
   );
 }

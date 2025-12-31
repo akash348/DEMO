@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 const initialForm = {
   name: "",
@@ -14,6 +15,12 @@ export default function Trades() {
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const [editingId, setEditingId] = useState(null);
   const [viewTrade, setViewTrade] = useState(null);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
 
   const fetchTrades = async () => {
     const response = await api.get("/trades", { params: { active_only: false } });
@@ -87,13 +94,19 @@ export default function Trades() {
   };
 
   const handleDelete = async (tradeId) => {
-    if (!window.confirm("Delete this trade?")) return;
-    try {
-      await api.delete(`/trades/${tradeId}`);
-      await fetchTrades();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete trade." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Delete trade?",
+      message: "This action will permanently remove the trade.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/trades/${tradeId}`);
+          await fetchTrades();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete trade." });
+        }
+      }
+    });
   };
 
   return (
@@ -207,6 +220,18 @@ export default function Trades() {
           )}
         </tbody>
       </table>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
     </div>
   );
 }

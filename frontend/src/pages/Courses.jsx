@@ -5,6 +5,7 @@ import fallbackCourses from "../data/courses.js";
 
 export default function Courses() {
   const [courses, setCourses] = useState([]);
+  const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -32,6 +33,26 @@ export default function Courses() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    api
+      .get("/trades", { params: { active_only: false } })
+      .then((response) => {
+        if (!active) return;
+        setTrades(response.data);
+      })
+      .catch(() => {
+        if (!active) return;
+        setTrades([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const tradeMap = new Map(trades.map((trade) => [trade.id, trade.name]));
+
   return (
     <div className="page">
       <section className="section">
@@ -48,7 +69,11 @@ export default function Courses() {
               {courses.length ? (
                 <div className="grid-3">
                   {courses.map((course) => (
-                    <CourseCard key={course.id} course={course} />
+                    <CourseCard
+                      key={course.id}
+                      course={course}
+                      tradeLabel={tradeMap.get(course.trade_id)}
+                    />
                   ))}
                 </div>
               ) : (

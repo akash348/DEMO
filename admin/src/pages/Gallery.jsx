@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 const initialForm = {
   media_type: "auto",
@@ -16,6 +17,12 @@ export default function Gallery() {
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const [editingId, setEditingId] = useState(null);
   const [viewItem, setViewItem] = useState(null);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
   const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001/api/v1";
   const mediaBase = apiBase.replace(/\/api\/v1\/?$/, "");
 
@@ -120,13 +127,19 @@ export default function Gallery() {
   };
 
   const handleDelete = async (itemId) => {
-    if (!window.confirm("Delete this gallery item?")) return;
-    try {
-      await api.delete(`/gallery/${itemId}`);
-      await fetchGallery();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete gallery item." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Delete gallery item?",
+      message: "This action will permanently remove the media item.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/gallery/${itemId}`);
+          await fetchGallery();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete gallery item." });
+        }
+      }
+    });
   };
 
   return (
@@ -279,6 +292,18 @@ export default function Gallery() {
           )}
         </tbody>
       </table>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
     </div>
   );
 }

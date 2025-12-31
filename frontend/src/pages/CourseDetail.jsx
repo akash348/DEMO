@@ -7,6 +7,7 @@ export default function CourseDetail() {
   const { id } = useParams();
   const [course, setCourse] = useState(null);
   const [status, setStatus] = useState("loading");
+  const [tradeName, setTradeName] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -38,6 +39,31 @@ export default function CourseDetail() {
     };
   }, [id]);
 
+  useEffect(() => {
+    let active = true;
+    if (!course?.trade_id) {
+      setTradeName("");
+      return () => {
+        active = false;
+      };
+    }
+
+    api
+      .get(`/trades/${course.trade_id}`)
+      .then((response) => {
+        if (!active) return;
+        setTradeName(response.data?.name || "");
+      })
+      .catch(() => {
+        if (!active) return;
+        setTradeName("");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [course]);
+
   if (status === "loading") {
     return (
       <div className="page">
@@ -65,16 +91,25 @@ export default function CourseDetail() {
     );
   }
 
+  const tradeLabel = tradeName || course.trade || "General";
+
   return (
     <div className="page">
       <section className="section">
         <div className="container narrow">
           <p className="eyebrow">Course Details</p>
+          <div className="course-detail-meta">
+            <span className="detail-pill">{tradeLabel} Trade</span>
+          </div>
           <h2>{course.title}</h2>
           <p className="lead">
             {course.description || "Hands-on training with guided projects and placement support."}
           </p>
           <div className="detail-grid">
+            <div>
+              <h4>Trade</h4>
+              <p>{tradeLabel}</p>
+            </div>
             <div>
               <h4>Duration</h4>
               <p>{course.duration || "Flexible duration"}</p>

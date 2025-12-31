@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 const initialForm = {
   trade_id: "",
@@ -18,6 +19,12 @@ export default function Courses() {
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const [editingId, setEditingId] = useState(null);
   const [viewCourse, setViewCourse] = useState(null);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
 
   const fetchCourses = async () => {
     const response = await api.get("/courses", { params: { active_only: false } });
@@ -102,13 +109,19 @@ export default function Courses() {
   };
 
   const handleDelete = async (courseId) => {
-    if (!window.confirm("Delete this course?")) return;
-    try {
-      await api.delete(`/courses/${courseId}`);
-      await fetchCourses();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete course." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Delete course?",
+      message: "This action will permanently remove the course.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/courses/${courseId}`);
+          await fetchCourses();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete course." });
+        }
+      }
+    });
   };
 
   return (
@@ -270,6 +283,18 @@ export default function Courses() {
           )}
         </tbody>
       </table>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
     </div>
   );
 }

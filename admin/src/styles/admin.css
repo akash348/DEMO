@@ -342,6 +342,62 @@ a {
   font-family: inherit;
 }
 
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 76, 92, 0.22);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.dialog-card {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+}
+
+.dialog-card h4 {
+  margin: 0;
+}
+
+.dialog-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.dialog-label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dialog-label span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.dialog-label input {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-family: inherit;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .question-options {
   display: grid;
   gap: 12px;

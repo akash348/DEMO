@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
+import PromptDialog from "../components/PromptDialog.jsx";
 
 const initialForm = {
   enrollment_no: "",
@@ -24,6 +26,17 @@ export default function Students() {
   const [viewStudent, setViewStudent] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
+  const [loginDialog, setLoginDialog] = useState({
+    open: false,
+    studentId: null,
+    value: ""
+  });
   const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001/api/v1";
   const mediaBase = apiBase.replace(/\/api\/v1\/?$/, "");
 
@@ -144,28 +157,51 @@ export default function Students() {
     setFileInputKey((prev) => prev + 1);
   };
 
-  const handleSetLogin = async (studentId) => {
-    const password = window.prompt("Set student login password:");
-    if (!password) return;
+  const generatePassword = () => {
+    const random = Math.random().toString(36).slice(2, 10);
+    return `PRG${random}`;
+  };
+
+  const handleSetLogin = (studentId) => {
+    setLoginDialog({ open: true, studentId, value: "" });
+  };
+
+  const handleConfirmSetLogin = async () => {
+    if (!loginDialog.studentId) return;
+    let password = loginDialog.value.trim();
+    if (!password) {
+      password = generatePassword();
+    }
     const formData = new FormData();
     formData.append("password", password);
     try {
-      await api.post(`/students/${studentId}/set-password`, formData);
-      setStatus({ state: "success", message: "Student login enabled." });
+      await api.post(`/students/${loginDialog.studentId}/set-password`, formData);
+      setStatus({
+        state: "success",
+        message: `Student login enabled. Password: ${password}`
+      });
       await fetchStudents();
     } catch (err) {
       setStatus({ state: "error", message: "Unable to set student login." });
+    } finally {
+      setLoginDialog({ open: false, studentId: null, value: "" });
     }
   };
 
   const handleDelete = async (studentId) => {
-    if (!window.confirm("Delete this student record?")) return;
-    try {
-      await api.delete(`/students/${studentId}`);
-      await fetchStudents();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete student." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Delete student?",
+      message: "This action will permanently remove the student record.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/students/${studentId}`);
+          await fetchStudents();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete student." });
+        }
+      }
+    });
   };
 
   const courseMap = new Map(courses.map((course) => [course.id, course.title]));
@@ -378,6 +414,33 @@ export default function Students() {
           )}
         </tbody>
       </table>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
+      <PromptDialog
+        open={loginDialog.open}
+        title="Enable student login"
+        message="Set a password or auto-generate one for the student."
+        label="Password"
+        value={loginDialog.value}
+        placeholder="Leave empty to auto-generate"
+        onChange={(value) => setLoginDialog((prev) => ({ ...prev, value }))}
+        onCancel={() => setLoginDialog({ open: false, studentId: null, value: "" })}
+        onGenerate={() =>
+          setLoginDialog((prev) => ({ ...prev, value: generatePassword() }))
+        }
+        onConfirm={handleConfirmSetLogin}
+        confirmLabel="Enable Login"
+      />
     </div>
   );
 }

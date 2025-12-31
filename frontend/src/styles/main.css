@@ -300,6 +300,13 @@ main {
   opacity: 0.6;
 }
 
+.course-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .course-meta {
   align-self: flex-start;
   font-size: 0.78rem;
@@ -311,6 +318,18 @@ main {
   border-radius: 999px;
   background: rgba(38, 70, 83, 0.08);
   border: 1px solid rgba(38, 70, 83, 0.15);
+}
+
+.course-trade {
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(231, 111, 81, 0.14);
+  color: #c25536;
+  border: 1px solid rgba(231, 111, 81, 0.3);
 }
 
 .course-title {
@@ -420,6 +439,24 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin: 20px 0;
+}
+
+.course-detail-meta {
+  margin-bottom: 10px;
+}
+
+.detail-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(38, 70, 83, 0.08);
+  color: var(--accent-2);
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
 .gallery-grid {

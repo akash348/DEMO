@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 const initialForm = {
   student_id: "",
@@ -23,6 +24,12 @@ export default function Certificates() {
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const [editingId, setEditingId] = useState(null);
   const [viewCert, setViewCert] = useState(null);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
 
   const fetchCertificates = async () => {
     const response = await api.get("/certificates");
@@ -124,13 +131,19 @@ export default function Certificates() {
   };
 
   const handleDelete = async (certId) => {
-    if (!window.confirm("Delete this certificate?")) return;
-    try {
-      await api.delete(`/certificates/${certId}`);
-      await fetchCertificates();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete certificate." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Delete certificate?",
+      message: "This action will permanently remove the certificate.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/certificates/${certId}`);
+          await fetchCertificates();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete certificate." });
+        }
+      }
+    });
   };
 
   const studentMap = new Map(students.map((student) => [student.id, student.name]));
@@ -335,6 +348,18 @@ export default function Certificates() {
           )}
         </tbody>
       </table>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
     </div>
   );
 }

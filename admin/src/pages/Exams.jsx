@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 const initialExamForm = {
   title: "",
@@ -38,6 +39,12 @@ export default function Exams() {
   const [questionStatus, setQuestionStatus] = useState({ state: "idle", message: "" });
   const [questionForm, setQuestionForm] = useState(initialQuestionForm);
   const [options, setOptions] = useState(defaultOptions);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
 
   const fetchExams = async () => {
     const response = await api.get("/exams");
@@ -152,16 +159,22 @@ export default function Exams() {
   };
 
   const handleDelete = async (examId) => {
-    if (!window.confirm("Delete this exam?")) return;
-    try {
-      await api.delete(`/exams/${examId}`);
-      if (selectedExam?.id === examId) {
-        setSelectedExam(null);
+    setConfirmState({
+      open: true,
+      title: "Delete exam?",
+      message: "This action will permanently remove the exam and its questions.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/exams/${examId}`);
+          if (selectedExam?.id === examId) {
+            setSelectedExam(null);
+          }
+          await fetchExams();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete exam." });
+        }
       }
-      await fetchExams();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete exam." });
-    }
+    });
   };
 
   const handleQuestionChange = (event) => {
@@ -232,15 +245,21 @@ export default function Exams() {
   };
 
   const handleDeleteQuestion = async (questionId) => {
-    if (!window.confirm("Delete this question?")) return;
-    try {
-      await api.delete(`/exams/questions/${questionId}`);
-      if (selectedExam) {
-        await fetchQuestions(selectedExam.id);
+    setConfirmState({
+      open: true,
+      title: "Delete question?",
+      message: "This action will permanently remove the question.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/exams/questions/${questionId}`);
+          if (selectedExam) {
+            await fetchQuestions(selectedExam.id);
+          }
+        } catch (err) {
+          setQuestionStatus({ state: "error", message: "Unable to delete question." });
+        }
       }
-    } catch (err) {
-      setQuestionStatus({ state: "error", message: "Unable to delete question." });
-    }
+    });
   };
 
   const activeExamLabel = useMemo(() => {
@@ -520,6 +539,19 @@ export default function Exams() {
         )}
         {!selectedExam && <div className="empty-state">Choose an exam to manage questions.</div>}
       </div>
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
     </div>
   );
 }

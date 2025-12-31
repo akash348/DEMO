@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 const initialForm = {
   title: "",
@@ -16,6 +17,12 @@ export default function Expenses() {
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const [editingId, setEditingId] = useState(null);
   const [viewExpense, setViewExpense] = useState(null);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
 
   const fetchExpenses = async () => {
     const response = await api.get("/expenses");
@@ -89,13 +96,19 @@ export default function Expenses() {
   };
 
   const handleDelete = async (expenseId) => {
-    if (!window.confirm("Delete this expense record?")) return;
-    try {
-      await api.delete(`/expenses/${expenseId}`);
-      await fetchExpenses();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete expense." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Delete expense record?",
+      message: "This action will permanently remove the expense record.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/expenses/${expenseId}`);
+          await fetchExpenses();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete expense." });
+        }
+      }
+    });
   };
 
   return (
@@ -229,6 +242,18 @@ export default function Expenses() {
           )}
         </tbody>
       </table>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
     </div>
   );
 }

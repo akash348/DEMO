@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 const initialForm = {
   student_id: "",
@@ -17,6 +18,12 @@ export default function Fees() {
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const [editingId, setEditingId] = useState(null);
   const [viewFee, setViewFee] = useState(null);
+  const [confirmState, setConfirmState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
 
   const fetchFees = async () => {
     const response = await api.get("/fees");
@@ -95,13 +102,19 @@ export default function Fees() {
   };
 
   const handleDelete = async (feeId) => {
-    if (!window.confirm("Delete this fee record?")) return;
-    try {
-      await api.delete(`/fees/${feeId}`);
-      await fetchFees();
-    } catch (err) {
-      setStatus({ state: "error", message: "Unable to delete fee record." });
-    }
+    setConfirmState({
+      open: true,
+      title: "Delete fee record?",
+      message: "This action will permanently remove the fee record.",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/fees/${feeId}`);
+          await fetchFees();
+        } catch (err) {
+          setStatus({ state: "error", message: "Unable to delete fee record." });
+        }
+      }
+    });
   };
 
   const studentMap = new Map(students.map((student) => [student.id, student.name]));
@@ -244,6 +257,18 @@ export default function Fees() {
           )}
         </tbody>
       </table>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+        onConfirm={async () => {
+          if (confirmState.onConfirm) {
+            await confirmState.onConfirm();
+          }
+          setConfirmState((prev) => ({ ...prev, open: false }));
+        }}
+      />
     </div>
   );
 }
