@@ -1,0 +1,60 @@
+name: Deploy certificate API to MilesWeb
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'php-stack/api/src/routes.php'
+      - '.github/workflows/deploy-certificate-api.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: milesweb-certificate-api
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch exact revision
+        env:
+          REVISION: ${{ github.sha }}
+        run: |
+          git init .
+          git remote add origin https://github.com/akash348/DEMO.git
+          git fetch --depth=1 origin "$REVISION"
+          git checkout --detach FETCH_HEAD
+      - name: Configure SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.MILESWEB_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.MILESWEB_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Validate, back up and deploy PHP routes
+        run: |
+          set -euo pipefail
+          server=pragati_1@103.86.176.240
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$server" 'mkdir -p ~/.pragati-deploy/backups'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes php-stack/api/src/routes.php "$server:.pragati-deploy/routes.php"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$server" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          target="$HOME/public_html/pragati-api/src/routes.php"
+          candidate="$HOME/.pragati-deploy/routes.php"
+          php -l "$candidate"
+          test -f "$target"
+          backup="$HOME/.pragati-deploy/backups/routes-$(date +%Y%m%d-%H%M%S).php"
+          cp -p "$target" "$backup"
+          cp "$candidate" "$target.next"
+          chmod --reference="$target" "$target.next"
+          mv -f "$target.next" "$target"
+          if ! curl --fail --silent --show-error --max-time 30 https://pragati-institute.co.in/pragati-api/v1/courses > /dev/null; then
+            cp -p "$backup" "$target.next"
+            mv -f "$target.next" "$target"
+            echo 'Health check failed; restored previous version.' >&2
+            exit 1
+          fi
+          sha256sum "$target"
+          echo "Deployment verified. Backup: $backup"
+          REMOTE
