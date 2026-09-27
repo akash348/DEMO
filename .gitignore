@@ -7,3 +7,8 @@ __pycache__/
 *.pyc
 .DS_Store
 dist/
+
+# Private hosting configuration and local PHP runtime files
+php-stack/api/src/config.php
+php-stack/api/*.log
+php-stack/api/*.zip
