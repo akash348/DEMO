@@ -2,7 +2,11 @@
 // Run on the hosting server; never prints credentials or student records.
 $root = getenv('HOME') . '/public_html/pragati-api/src/';
 require $root . 'bootstrap.php';
-$student = $pdo->query("SELECT id FROM students WHERE login_enabled = 1 AND status <> 'inactive' ORDER BY id LIMIT 1")->fetch();
+require $root . 'routes.php';
+$student = null;
+foreach ($pdo->query("SELECT id FROM students WHERE login_enabled = 1 AND status <> 'inactive' ORDER BY id") as $candidate) {
+    if (student_portal_permissions($pdo, (int)$candidate['id'])['portal']) { $student = $candidate; break; }
+}
 if (!$student) { echo "No enabled student account; anonymous access and fixture tests cover the portal.\n"; exit(0); }
 $token = create_token($pdo, 'student', null, (int)$student['id'], 1);
 try {

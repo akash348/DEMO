@@ -248,9 +248,9 @@ export default function StudentExams() {
               {result && (
                 <div className="exam-result">
                   <h4>Result</h4>
-                  <p>
+                  {result.results_hidden ? <p>Your exam was submitted. The institute has not enabled result access.</p> : <p>
                     <strong>Total Score:</strong> {result.total_score}
-                  </p>
+                  </p>}
                   <p>
                     <strong>Status:</strong> {result.status}
                   </p>

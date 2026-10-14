@@ -142,7 +142,7 @@ function handle_auth(string $method, array $segments, PDO $pdo, array $config): 
 function handle_student_auth(string $method, array $segments, PDO $pdo, array $config): void
 {
     $action = $segments[1] ?? '';
-    if (in_array($action, ['dashboard', 'password', 'logout', 'certificates', 'fees'], true)) {
+    if (in_array($action, ['dashboard', 'password', 'logout', 'certificates', 'fees', 'notes'], true)) {
         handle_student_portal($method, $segments, $pdo, $config);
     }
 
@@ -162,6 +162,7 @@ function handle_student_auth(string $method, array $segments, PDO $pdo, array $c
         if (!$student['login_password_hash'] || !password_verify($password, $student['login_password_hash'])) {
             unauthorized();
         }
+        require_student_permission($pdo, $student, 'portal');
         $token = create_token($pdo, 'student', null, (int)$student['id'], (int)$config['auth']['token_ttl_hours']);
         json_response(['access_token' => $token, 'token_type' => 'bearer']);
     }
@@ -182,6 +183,7 @@ function handle_student_auth(string $method, array $segments, PDO $pdo, array $c
             unauthorized();
         }
         if (($student['status'] ?? '') === 'inactive') unauthorized();
+        require_student_permission($pdo, $student, 'portal');
         if (!empty($student['login_enabled'])) json_response(['detail' => 'Password already set. Please login or contact the institute to reset it.'], 409);
         $hash = password_hash($password, PASSWORD_BCRYPT);
         $update = $pdo->prepare('UPDATE students SET login_password_hash = :hash, login_enabled = 1 WHERE id = :id AND login_enabled = 0');
@@ -458,6 +460,7 @@ function handle_courses(string $method, array $segments, PDO $pdo): void
 
 function handle_students(string $method, array $segments, PDO $pdo, array $config): void
 {
+    if (count($segments) === 3 && $segments[2] === 'portal-access') handle_student_access($method, (int)$segments[1], $pdo);
     if ($method === 'GET' && count($segments) === 1) {
         require_admin($pdo);
         $stmt = $pdo->query('SELECT * FROM students ORDER BY created_at DESC');
@@ -2958,7 +2961,8 @@ function handle_certificates(string $method, array $segments, PDO $pdo, array $c
 function handle_exams(string $method, array $segments, PDO $pdo): void
 {
     if ($method === 'GET' && ($segments[1] ?? '') === 'student' && ($segments[2] ?? '') === 'available') {
-        student_portal_account($pdo);
+        $student = student_portal_account($pdo);
+        require_student_permission($pdo, $student, 'exams');
         $stmt = $pdo->query('SELECT * FROM exams WHERE is_active = 1 AND (start_at IS NULL OR start_at <= NOW()) AND (end_at IS NULL OR end_at >= NOW()) ORDER BY created_at DESC');
         json_response($stmt->fetchAll());
     }
@@ -2966,6 +2970,7 @@ function handle_exams(string $method, array $segments, PDO $pdo): void
     if ($method === 'POST' && count($segments) === 3 && $segments[2] === 'start') {
         $student = student_portal_account($pdo);
         $examId = (int)$segments[1];
+        require_student_permission($pdo, $student, 'exams');
         $stmt = $pdo->prepare('SELECT * FROM exams WHERE id = :id AND is_active = 1 AND (start_at IS NULL OR start_at <= NOW()) AND (end_at IS NULL OR end_at >= NOW()) LIMIT 1');
         $stmt->execute([':id' => $examId]);
         $exam = $stmt->fetch();
@@ -2990,6 +2995,7 @@ function handle_exams(string $method, array $segments, PDO $pdo): void
     if ($method === 'POST' && count($segments) === 3 && $segments[2] === 'submit') {
         $student = student_portal_account($pdo);
         $examId = (int)$segments[1];
+        require_student_permission($pdo, $student, 'exams');
         $data = get_json_body();
         $attemptId = (int)($data['attempt_id'] ?? 0);
         $answers = $data['answers'] ?? [];
@@ -3089,6 +3095,7 @@ function handle_exams(string $method, array $segments, PDO $pdo): void
             }
             throw $e;
         }
+        if (!student_portal_permissions($pdo, (int)$student['id'])['results']) json_response(['status' => 'submitted', 'results_hidden' => true]);
         json_response(['total_score' => $score, 'status' => 'submitted']);
     }
 

@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
-import PhotoEditor from "../components/PhotoEditor.jsx";
-import { preparePhotoForUpload } from "../utils/photo.js";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import PromptDialog from "../components/PromptDialog.jsx";
+import DateInput from "../components/DateInput.jsx";
+import LoadingState from "../components/LoadingState.jsx";
+import PhotoEditor from "../components/PhotoEditor.jsx";
+import StudentAccess from "../components/StudentAccess.jsx";
+import { preparePhotoForUpload } from "../utils/photo.js";
+import { formatDateForDisplay, parseDateForApi } from "../utils/date.js";
 
 const initialForm = {
   enrollment_no: "",
@@ -24,8 +28,10 @@ export default function Students() {
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [status, setStatus] = useState({ state: "idle", message: "" });
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [viewStudent, setViewStudent] = useState(null);
+  const [accessStudent, setAccessStudent] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
@@ -60,9 +66,12 @@ export default function Students() {
   };
 
   useEffect(() => {
-    Promise.all([fetchStudents(), fetchCourses()]).catch(() => {
-      setStatus({ state: "error", message: "Unable to load students." });
-    });
+    setLoading(true);
+    Promise.all([fetchStudents(), fetchCourses()])
+      .catch(() => {
+        setStatus({ state: "error", message: "Unable to load students." });
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const resetForm = () => {
@@ -103,8 +112,8 @@ export default function Students() {
       email: form.email || null,
       address: form.address || null,
       course_id: form.course_id ? Number(form.course_id) : null,
-      dob: form.dob || null,
-      join_date: form.join_date || null,
+      dob: parseDateForApi(form.dob),
+      join_date: parseDateForApi(form.join_date),
       status: form.status
     };
     try {
@@ -153,8 +162,8 @@ export default function Students() {
       email: student.email || "",
       address: student.address || "",
       course_id: student.course_id ? String(student.course_id) : "",
-      dob: student.dob || "",
-      join_date: student.join_date || "",
+      dob: formatDateForDisplay(student.dob),
+      join_date: formatDateForDisplay(student.join_date),
       status: student.status || "active"
     });
     setPhotoFile(null);
@@ -219,6 +228,7 @@ export default function Students() {
         </button>
       </div>
       {status.message && <div className={`status ${status.state}`}>{status.message}</div>}
+      {accessStudent && <StudentAccess key={accessStudent.id} student={accessStudent} onClose={() => setAccessStudent(null)} />}
       {viewStudent && (
         <div className="detail-card">
           <div className="detail-head">
@@ -256,11 +266,11 @@ export default function Students() {
             </div>
             <div>
               <div className="detail-label">DOB</div>
-              <div className="detail-value">{viewStudent.dob || "NA"}</div>
+              <div className="detail-value">{formatDateForDisplay(viewStudent.dob) || "NA"}</div>
             </div>
             <div>
               <div className="detail-label">Join Date</div>
-              <div className="detail-value">{viewStudent.join_date || "NA"}</div>
+              <div className="detail-value">{formatDateForDisplay(viewStudent.join_date) || "NA"}</div>
             </div>
             <div>
               <div className="detail-label">Status</div>
@@ -282,77 +292,113 @@ export default function Students() {
         </div>
       )}
       {formOpen && (
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form className="form-grid student-form" onSubmit={handleSubmit}>
           <div className="form-row">
-            <input
-              name="enrollment_no"
-              placeholder="Enrollment No (auto)"
-              value={form.enrollment_no}
-              onChange={handleChange}
-            />
-            <input
-              name="name"
-              placeholder="Student Name"
-              value={form.name}
-              onChange={handleChange}
-              required
-            />
-            <input
-              name="father_name"
-              placeholder="Father Name"
-              value={form.father_name}
-              onChange={handleChange}
-              required={!editingId}
-            />
+            <label className="field-label">
+              <span>Enrollment No</span>
+              <input
+                name="enrollment_no"
+                placeholder="Enrollment No (auto)"
+                value={form.enrollment_no}
+                onChange={handleChange}
+              />
+            </label>
+            <label className="field-label">
+              <span>Student Name</span>
+              <input
+                name="name"
+                placeholder="Student Name"
+                value={form.name}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field-label">
+              <span>Father Name</span>
+              <input
+                name="father_name"
+                placeholder="Father Name"
+                value={form.father_name}
+                onChange={handleChange}
+                required={!editingId}
+              />
+            </label>
           </div>
           <div className="form-row">
-            <input
-              name="phone"
-              placeholder="Phone"
-              value={form.phone}
-              onChange={handleChange}
-              required
-            />
-            <input
-              type="date"
-              name="dob"
-              value={form.dob}
-              onChange={handleChange}
-              required={!editingId}
-            />
-            <input
-              key={fileInputKey}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              required={!editingId}
-            />
+            <label className="field-label">
+              <span>Phone</span>
+              <input
+                name="phone"
+                placeholder="Phone"
+                value={form.phone}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label className="field-label">
+              <span>Date of Birth</span>
+              <DateInput
+                name="dob"
+                value={form.dob}
+                onChange={(value) => setForm((prev) => ({ ...prev, dob: value }))}
+                required={!editingId}
+              />
+            </label>
+            <label className="field-label">
+              <span>Photo</span>
+              <input
+                key={fileInputKey}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
+                required={!editingId}
+              />
+            </label>
             <PhotoEditor file={photoFile} onChange={setPhotoFile} onBusyChange={setPhotoBusy} />
           </div>
           <div className="form-row">
-            <input name="email" placeholder="Email" value={form.email} onChange={handleChange} />
-            <input
-              name="address"
-              placeholder="Address"
-              value={form.address}
-              onChange={handleChange}
-            />
+            <label className="field-label">
+              <span>Email</span>
+              <input name="email" placeholder="Email" value={form.email} onChange={handleChange} />
+            </label>
+            <label className="field-label">
+              <span>Address</span>
+              <input
+                name="address"
+                placeholder="Address"
+                value={form.address}
+                onChange={handleChange}
+              />
+            </label>
           </div>
           <div className="form-row">
-            <select name="course_id" value={form.course_id} onChange={handleChange}>
-              <option value="">Select Course</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-            </select>
-            <input type="date" name="join_date" value={form.join_date} onChange={handleChange} />
-            <select name="status" value={form.status} onChange={handleChange}>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-              <option value="paused">Paused</option>
-            </select>
+            <label className="field-label">
+              <span>Course</span>
+              <select name="course_id" value={form.course_id} onChange={handleChange}>
+                <option value="">Select Course</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field-label">
+              <span>Join Date</span>
+              <DateInput
+                name="join_date"
+                value={form.join_date}
+                onChange={(value) => setForm((prev) => ({ ...prev, join_date: value }))}
+              />
+            </label>
+            <label className="field-label">
+              <span>Status</span>
+              <select name="status" value={form.status} onChange={handleChange}>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="paused">Paused</option>
+              </select>
+            </label>
           </div>
           <div className="form-actions">
             <button className="btn btn-secondary" type="submit" disabled={photoBusy || status.state === "loading"}>
@@ -400,6 +446,7 @@ export default function Students() {
                   <button className="btn btn-ghost" type="button" onClick={() => handleEdit(student)}>
                     Edit
                   </button>
+                  <button className="btn btn-ghost" type="button" onClick={() => {setAccessStudent(student); window.scrollTo({top:0,behavior:"smooth"});}}>Portal Access</button>
                   <button className="btn btn-ghost" type="button" onClick={() => handleSetLogin(student.id)}>
                     Set Login
                   </button>
@@ -410,7 +457,14 @@ export default function Students() {
               </td>
             </tr>
           ))}
-          {!students.length && (
+          {loading && (
+            <tr>
+              <td colSpan="6" className="empty-state">
+                <LoadingState label="Loading students..." />
+              </td>
+            </tr>
+          )}
+          {!loading && !students.length && (
             <tr>
               <td colSpan="6" className="empty-state">
                 No students added yet.

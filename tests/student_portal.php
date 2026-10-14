@@ -7,11 +7,13 @@ function not_found(){json_response(['detail'=>'Not found'],404);}
 function get_json_body(){return $GLOBALS['body']??[];}
 function get_bearer_token(){return 'session-1';}
 function require_student($pdo){if(empty($GLOBALS['authorized']))unauthorized();return $pdo->query('SELECT * FROM students WHERE id=1')->fetch(PDO::FETCH_ASSOC);}
+function require_admin($pdo,$roles=[]){if(empty($GLOBALS['admin']))json_response(['detail'=>'Forbidden'],403);}
 function normalize_date($value){return $value;}
 function create_token($pdo,$type,$user,$student,$ttl){$pdo->exec("INSERT INTO api_tokens VALUES ('new-session','student',$student)");return 'new-session';}
 require __DIR__.'/../php-stack/api/src/routes.php';
 $pdo=new PDO('sqlite::memory:');$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);$pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
 $pdo->exec('CREATE TABLE students(id INTEGER PRIMARY KEY,name TEXT,father_name TEXT,enrollment_no TEXT,dob TEXT,phone TEXT,email TEXT,address TEXT,photo_url TEXT,join_date TEXT,status TEXT,course_id INTEGER,branch_name TEXT,total_fee REAL,login_enabled INTEGER,login_password_hash TEXT);
+CREATE TABLE student_portal_access(student_id INTEGER PRIMARY KEY,permissions TEXT);
 CREATE TABLE courses(id INTEGER PRIMARY KEY,title TEXT,description TEXT,duration TEXT,fee REAL);
 CREATE TABLE fees(id INTEGER PRIMARY KEY,student_id INTEGER,amount REAL,mode TEXT,paid_on TEXT,receipt_no TEXT);
 CREATE TABLE certificates(id INTEGER PRIMARY KEY,student_id INTEGER,course_id INTEGER,certificate_code TEXT,issued_on TEXT,grade TEXT,percentage REAL,status TEXT);
@@ -43,4 +45,20 @@ check(callPortal($pdo,$config,'POST',['student-auth','password'],['current_passw
 check(password_verify('NewPass123',$pdo->query('SELECT login_password_hash FROM students WHERE id=1')->fetchColumn()),'New password not persisted');
 check($pdo->query('SELECT COUNT(*) FROM api_tokens WHERE student_id=1')->fetchColumn()==1,'Old sessions not revoked');
 $pdo->exec("UPDATE students SET status='inactive' WHERE id=1");check(callPortal($pdo,$config,'GET',['student-auth','dashboard'])->status===401,'Inactive student allowed');
-echo "PASS: authentication, own-record dashboard, fee totals, document ownership, first-time setup guard, password change and session revocation.\n";
+$pdo->exec("UPDATE students SET status='active' WHERE id=1");
+function accessCall($pdo,$method,$id,$body=[]){$GLOBALS['body']=$body;try{handle_student_access($method,$id,$pdo);}catch(PortalResponse $r){return $r;}}
+$GLOBALS['admin']=false;check(accessCall($pdo,'PUT',1,['fees'=>false])->status===403,'Non-admin changed access');
+$GLOBALS['admin']=true;check(accessCall($pdo,'PUT',1,['fees'=>'false'])->status===400,'Invalid boolean accepted');
+check(accessCall($pdo,'PUT',1,['unknown'=>false])->status===400,'Unknown permission accepted');
+check(accessCall($pdo,'PUT',1,['fees'=>false,'certificates'=>false,'notes'=>false,'results'=>false,'profile'=>false,'exams'=>false])->status===200,'Admin save failed');
+$data=callPortal($pdo,$config,'GET',['student-auth','dashboard'])->data;
+check(!$data['fees']&&!$data['certificates']&&!$data['notes']&&!$data['results'],'Hidden data leaked');
+check($data['fee_summary']['total']===null&&!isset($data['course']['fee'])&&!isset($data['profile']['dob']),'Hidden detail or fee leaked');
+foreach(['fees','certificates'] as $kind)check(callPortal($pdo,$config,'GET',['student-auth',$kind,1,'pdf'])->status===403,'Disabled document allowed');
+try{handle_exams('GET',['exams','student','available'],$pdo);}catch(PortalResponse $r){check($r->status===403,'Disabled exams allowed');}
+check(student_portal_permissions($pdo,2)['fees']===true,'Another student settings changed');
+check(accessCall($pdo,'PUT',1,['portal'=>false])->status===200,'Portal disable failed');
+check($pdo->query('SELECT COUNT(*) FROM api_tokens WHERE student_id=1')->fetchColumn()==0,'Portal disable did not revoke sessions');
+check(callPortal($pdo,$config,'GET',['student-auth','dashboard'])->status===403,'Disabled portal accessible');
+check(callPortal($pdo,$config,'POST',['student-auth','login'],['enrollment_no'=>'TEST-1','password'=>'NewPass123'])->status===403,'Disabled portal could login');
+echo "PASS: student authentication, ownership, admin-only permissions, persistence, hidden data, denied PDFs/exams and disabled login.\n";
