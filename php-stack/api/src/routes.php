@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/student_portal.php';
 
 function dispatch(string $method, array $segments, PDO $pdo, array $config): void
 {
@@ -141,6 +142,9 @@ function handle_auth(string $method, array $segments, PDO $pdo, array $config): 
 function handle_student_auth(string $method, array $segments, PDO $pdo, array $config): void
 {
     $action = $segments[1] ?? '';
+    if (in_array($action, ['dashboard', 'password', 'logout', 'certificates', 'fees'], true)) {
+        handle_student_portal($method, $segments, $pdo, $config);
+    }
 
     if ($method === 'POST' && $action === 'login') {
         $data = get_json_body();
@@ -152,7 +156,7 @@ function handle_student_auth(string $method, array $segments, PDO $pdo, array $c
         $stmt = $pdo->prepare('SELECT * FROM students WHERE enrollment_no = :enroll LIMIT 1');
         $stmt->execute([':enroll' => $enrollment]);
         $student = $stmt->fetch();
-        if (!$student || !$student['login_enabled']) {
+        if (!$student || !$student['login_enabled'] || ($student['status'] ?? '') === 'inactive') {
             unauthorized();
         }
         if (!$student['login_password_hash'] || !password_verify($password, $student['login_password_hash'])) {
@@ -170,15 +174,19 @@ function handle_student_auth(string $method, array $segments, PDO $pdo, array $c
         if (!$enrollment || !$dob || !$password) {
             bad_request('Enrollment, DOB, and password are required.');
         }
+        if (strlen($password) < 8 || strlen($password) > 72) bad_request('Password must be 8 to 72 characters.');
         $stmt = $pdo->prepare('SELECT * FROM students WHERE enrollment_no = :enroll AND dob = :dob LIMIT 1');
         $stmt->execute([':enroll' => $enrollment, ':dob' => $dob]);
         $student = $stmt->fetch();
         if (!$student) {
             unauthorized();
         }
+        if (($student['status'] ?? '') === 'inactive') unauthorized();
+        if (!empty($student['login_enabled'])) json_response(['detail' => 'Password already set. Please login or contact the institute to reset it.'], 409);
         $hash = password_hash($password, PASSWORD_BCRYPT);
-        $update = $pdo->prepare('UPDATE students SET login_password_hash = :hash, login_enabled = 1 WHERE id = :id');
+        $update = $pdo->prepare('UPDATE students SET login_password_hash = :hash, login_enabled = 1 WHERE id = :id AND login_enabled = 0');
         $update->execute([':hash' => $hash, ':id' => $student['id']]);
+        if ($update->rowCount() !== 1) json_response(['detail' => 'Password already set. Please login.'], 409);
         $token = create_token($pdo, 'student', null, (int)$student['id'], (int)$config['auth']['token_ttl_hours']);
         json_response(['access_token' => $token, 'token_type' => 'bearer']);
     }
@@ -2950,13 +2958,13 @@ function handle_certificates(string $method, array $segments, PDO $pdo, array $c
 function handle_exams(string $method, array $segments, PDO $pdo): void
 {
     if ($method === 'GET' && ($segments[1] ?? '') === 'student' && ($segments[2] ?? '') === 'available') {
-        require_student($pdo);
+        student_portal_account($pdo);
         $stmt = $pdo->query('SELECT * FROM exams WHERE is_active = 1 AND (start_at IS NULL OR start_at <= NOW()) AND (end_at IS NULL OR end_at >= NOW()) ORDER BY created_at DESC');
         json_response($stmt->fetchAll());
     }
 
     if ($method === 'POST' && count($segments) === 3 && $segments[2] === 'start') {
-        $student = require_student($pdo);
+        $student = student_portal_account($pdo);
         $examId = (int)$segments[1];
         $stmt = $pdo->prepare('SELECT * FROM exams WHERE id = :id AND is_active = 1 AND (start_at IS NULL OR start_at <= NOW()) AND (end_at IS NULL OR end_at >= NOW()) LIMIT 1');
         $stmt->execute([':id' => $examId]);
@@ -2980,7 +2988,7 @@ function handle_exams(string $method, array $segments, PDO $pdo): void
     }
 
     if ($method === 'POST' && count($segments) === 3 && $segments[2] === 'submit') {
-        $student = require_student($pdo);
+        $student = student_portal_account($pdo);
         $examId = (int)$segments[1];
         $data = get_json_body();
         $attemptId = (int)($data['attempt_id'] ?? 0);

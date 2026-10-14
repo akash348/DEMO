@@ -1,0 +1,52 @@
+name: Deploy student portal website
+on:
+  push:
+    branches: [main]
+    paths: ['deployment/student-portal.tar.gz', '.github/workflows/deploy-student-portal.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: milesweb-public-website
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.MILESWEB_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.MILESWEB_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Back up and publish student portal
+        run: |
+          set -euo pipefail
+          server=pragati_1@103.86.176.240
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes deployment/student-portal.tar.gz "$server:.pragati-deploy/student-portal.tar.gz"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$server" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          target="$HOME/public_html"
+          stage=$(mktemp -d "$HOME/.pragati-deploy/student-portal-XXXXXX")
+          tar -xzf "$HOME/.pragati-deploy/student-portal.tar.gz" -C "$stage"
+          test -f "$stage/index.html"
+          grep -q 'student/dashboard' "$stage"/assets/*.js
+          grep -q 'My Certificates' "$stage"/assets/*.js
+          backup="$HOME/.pragati-deploy/backups/site-index-$(date +%Y%m%d-%H%M%S).html"
+          cp -p "$target/index.html" "$backup"
+          mkdir -p "$target/assets"
+          cp "$stage"/assets/* "$target/assets/"
+          cp "$stage/index.html" "$target/index.html.next"
+          chmod 644 "$target/index.html.next"
+          mv -f "$target/index.html.next" "$target/index.html"
+          if ! curl --fail --silent --show-error --max-time 30 "https://pragati-institute.co.in/student/login?deploy=$(date +%s)" | grep -q "$(basename "$(find "$stage/assets" -name '*.js' | head -1)")"; then
+            cp -p "$backup" "$target/index.html.next"
+            mv -f "$target/index.html.next" "$target/index.html"
+            exit 1
+          fi
+          echo "Student portal deployed. Backup: $backup"
+          REMOTE

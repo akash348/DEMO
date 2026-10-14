@@ -1,0 +1,151 @@
+import { useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import api from "../api/client.js";
+import fallbackCourses from "../data/courses.js";
+import PageHeader from "../components/PageHeader.jsx";
+
+export default function CourseDetail() {
+  const { id } = useParams();
+  const [course, setCourse] = useState(null);
+  const [status, setStatus] = useState("loading");
+  const [tradeName, setTradeName] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const numericId = Number(id);
+
+    if (Number.isNaN(numericId)) {
+      const fallback = fallbackCourses.find((item) => String(item.id) === id);
+      setCourse(fallback || null);
+      setStatus(fallback ? "ready" : "error");
+      return;
+    }
+
+    api
+      .get(`/courses/${numericId}`)
+      .then((response) => {
+        if (!active) return;
+        setCourse(response.data);
+        setStatus("ready");
+      })
+      .catch(() => {
+        if (!active) return;
+        const fallback = fallbackCourses.find((item) => item.id === numericId);
+        setCourse(fallback || null);
+        setStatus(fallback ? "ready" : "error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    let active = true;
+    if (!course?.trade_id) {
+      setTradeName("");
+      return () => {
+        active = false;
+      };
+    }
+
+    api
+      .get(`/trades/${course.trade_id}`)
+      .then((response) => {
+        if (!active) return;
+        setTradeName(response.data?.name || "");
+      })
+      .catch(() => {
+        if (!active) return;
+        setTradeName("");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [course]);
+
+  if (status === "loading") {
+    return (
+      <div className="page">
+        <PageHeader title="Course Details" description="Loading course information." />
+        <section className="section">
+          <div className="container">
+            <div className="status">Loading course...</div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div className="page">
+        <PageHeader title="Course Details" description="Course details are not available." />
+        <section className="section">
+          <div className="container">
+            <h2>Course not found</h2>
+            <Link className="btn btn-ghost" to="/courses">
+              Back to Courses
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const tradeLabel = tradeName || course.trade || "General";
+
+  return (
+    <div className="page">
+      <PageHeader
+        title={course.title}
+        crumbLabel="Course Details"
+        description="Course overview, duration, and admission details."
+      />
+      <section className="section">
+        <div className="container">
+          <div className="course-detail-shell">
+            <p className="eyebrow">Course Details</p>
+            <div className="course-detail-meta">
+              <span className="detail-pill">{tradeLabel} Trade</span>
+            </div>
+            <h2>{course.title}</h2>
+            <p className="lead">
+              {course.description || "Hands-on training with guided projects and placement support."}
+            </p>
+            <div className="course-detail-grid">
+              <div className="course-detail-item">
+                <h4>Trade</h4>
+                <p>{tradeLabel}</p>
+              </div>
+              <div className="course-detail-item">
+                <h4>Duration</h4>
+                <p>{course.duration || "Flexible duration"}</p>
+              </div>
+              <div className="course-detail-item">
+                <h4>Fees</h4>
+                <p>{course.fee ? `Rs. ${course.fee}` : "Contact for fee details"}</p>
+              </div>
+              <div className="course-detail-item">
+                <h4>Outcome</h4>
+                <p>Hands-on projects and certification support.</p>
+              </div>
+            </div>
+            <div className="course-detail-actions">
+              <Link className="btn btn-primary" to={`/admission?courseId=${course.id}`}>
+                Apply for this Course
+              </Link>
+              <Link className="btn btn-ghost" to={`/notes?courseId=${course.id}`}>
+                View Notes
+              </Link>
+              <Link className="btn btn-ghost" to="/courses">
+                Back to Courses
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
