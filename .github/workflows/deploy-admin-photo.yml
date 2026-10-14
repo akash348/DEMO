@@ -1,0 +1,53 @@
+name: Deploy admin photo rotation
+on:
+  push:
+    branches: [main]
+    paths: ['deployment/admin-photo-rotation.tar.gz', '.github/workflows/deploy-admin-photo.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: milesweb-admin
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.MILESWEB_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.MILESWEB_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Back up and publish verified admin build
+        run: |
+          set -euo pipefail
+          server=pragati_1@103.86.176.240
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes deployment/admin-photo-rotation.tar.gz "$server:.pragati-deploy/admin-photo-rotation.tar.gz"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$server" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          target="$HOME/public_html/admin"
+          stage=$(mktemp -d "$HOME/.pragati-deploy/admin-photo-XXXXXX")
+          tar -xzf "$HOME/.pragati-deploy/admin-photo-rotation.tar.gz" -C "$stage"
+          test -f "$stage/index.html"
+          grep -q '/admin/assets/' "$stage/index.html"
+          grep -q 'Rotate Left' "$stage"/assets/*.js
+          grep -q 'Rotate Right' "$stage"/assets/*.js
+          backup="$HOME/.pragati-deploy/backups/admin-index-$(date +%Y%m%d-%H%M%S).html"
+          cp -p "$target/index.html" "$backup"
+          mkdir -p "$target/assets"
+          cp "$stage"/assets/* "$target/assets/"
+          cp "$stage/index.html" "$target/index.html.next"
+          chmod 644 "$target/index.html.next"
+          mv -f "$target/index.html.next" "$target/index.html"
+          if ! curl --fail --silent --show-error --max-time 30 "https://pragati-institute.co.in/admin/?deploy=$(date +%s)" | grep -q "$(basename "$(find "$stage/assets" -name '*.js' | head -1)")"; then
+            cp -p "$backup" "$target/index.html.next"
+            mv -f "$target/index.html.next" "$target/index.html"
+            exit 1
+          fi
+          echo "Admin photo rotation deployed. Backup: $backup"
+          REMOTE
