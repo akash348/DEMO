@@ -6,6 +6,6 @@ After login, `/student/dashboard` shows the student's profile, assigned course a
 
 PHP endpoints under `/student-auth`: `POST login`, `POST register`, `GET dashboard`, `POST password`, `POST logout`, `GET fees/{id}/pdf`, `GET certificates/{id}/pdf`. Protected endpoints require a student bearer token; document queries additionally filter by the authenticated student ID. Responses exclude password hashes and disable caching. Inactive accounts cannot sign in or use the portal.
 
-Website source is `frontend-v2`; the legacy `frontend` carries the same student pages. Live PHP implementation is `php-stack/api/src/student_portal.php` and the auth routes in `routes.php`. No new database tables are required.
+Website source is `frontend-v2`. Live PHP implementation is `php-stack/api/src/student_portal.php` and the auth routes in `routes.php`. Per-student permissions use the `student_portal_access` table, created automatically by the deployment migration. See `STUDENT_ACCESS.md` for admin controls.
 
 Release bundles retain the existing public website pages and append hashed assets before atomically replacing `index.html`. Deployment workflows back up the old entrypoint and restore it if HTTP checks fail.
