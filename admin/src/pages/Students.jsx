@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import PhotoEditor from "../components/PhotoEditor.jsx";
+import { preparePhotoForUpload } from "../utils/photo.js";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import PromptDialog from "../components/PromptDialog.jsx";
 
@@ -25,6 +27,7 @@ export default function Students() {
   const [editingId, setEditingId] = useState(null);
   const [viewStudent, setViewStudent] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [confirmState, setConfirmState] = useState({
     open: false,
@@ -90,6 +93,7 @@ export default function Students() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (photoBusy || status.state === "loading") return;
     setStatus({ state: "loading", message: "" });
     const payload = {
       enrollment_no: form.enrollment_no || null,
@@ -108,7 +112,7 @@ export default function Students() {
         await api.put(`/students/${editingId}`, payload);
         if (photoFile) {
           const photoData = new FormData();
-          photoData.append("photo", photoFile);
+          photoData.append("photo", await preparePhotoForUpload(photoFile));
           await api.post(`/students/${editingId}/photo`, photoData);
         }
         setStatus({ state: "success", message: "Student updated successfully." });
@@ -123,7 +127,7 @@ export default function Students() {
             formData.append(key, value);
           }
         });
-        formData.append("photo", photoFile);
+        formData.append("photo", await preparePhotoForUpload(photoFile));
         await api.post("/students/upload", formData);
         setStatus({ state: "success", message: "Student added successfully." });
       }
@@ -323,6 +327,7 @@ export default function Students() {
               onChange={handlePhotoChange}
               required={!editingId}
             />
+            <PhotoEditor file={photoFile} onChange={setPhotoFile} onBusyChange={setPhotoBusy} />
           </div>
           <div className="form-row">
             <input name="email" placeholder="Email" value={form.email} onChange={handleChange} />
@@ -350,7 +355,7 @@ export default function Students() {
             </select>
           </div>
           <div className="form-actions">
-            <button className="btn btn-secondary" type="submit">
+            <button className="btn btn-secondary" type="submit" disabled={photoBusy || status.state === "loading"}>
               {editingId ? "Update Student" : "Save Student"}
             </button>
             {editingId && (

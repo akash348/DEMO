@@ -32,7 +32,12 @@ export default function Login() {
       const destination = location.state?.from?.pathname || "/admin/dashboard";
       navigate(destination, { replace: true });
     } catch (err) {
-      setStatus({ state: "error", message: "Invalid login credentials." });
+      const message = !err.response
+        ? "Unable to connect to the server. Please check that the API is running."
+        : err.response.status === 401
+          ? "Invalid email or password. Use the account registered on this server."
+          : "Unable to sign in. Please try again.";
+      setStatus({ state: "error", message });
     }
   };
 

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import api from "../api/client.js";
+import { resolveMediaUrl } from "../utils/media.js";
+import PhotoEditor from "../components/PhotoEditor.jsx";
+import { preparePhotoForUpload } from "../utils/photo.js";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 
 const initialForm = {
@@ -23,6 +26,8 @@ export default function Certificates() {
   const [form, setForm] = useState(initialForm);
   const [status, setStatus] = useState({ state: "idle", message: "" });
   const [editingId, setEditingId] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [viewCert, setViewCert] = useState(null);
   const [confirmState, setConfirmState] = useState({
     open: false,
@@ -55,6 +60,7 @@ export default function Certificates() {
   const resetForm = () => {
     setForm(initialForm);
     setEditingId(null);
+    setPhotoFile(null);
   };
 
   const handleFormToggle = () => {
@@ -68,6 +74,7 @@ export default function Certificates() {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
+    if (name === "student_id") setPhotoFile(null);
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -80,8 +87,15 @@ export default function Certificates() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (photoBusy || status.state === "loading") return;
     setStatus({ state: "loading", message: "" });
     try {
+      if (photoFile && form.student_id) {
+        const photoData = new FormData();
+        photoData.append("photo", await preparePhotoForUpload(photoFile));
+        await api.post(`/students/${form.student_id}/photo`, photoData);
+        await fetchStudents();
+      }
       if (editingId) {
         await api.put(`/certificates/${editingId}`, {
           issued_on: form.issued_on || null,
@@ -116,6 +130,7 @@ export default function Certificates() {
   };
 
   const handleEdit = (cert) => {
+    setPhotoFile(null);
     setFormOpen(true);
     setEditingId(cert.id);
     setForm({
@@ -288,8 +303,27 @@ export default function Certificates() {
             value={form.qr_url}
             onChange={handleChange}
           />
+          <div className="field-label">
+            <label htmlFor="certificate-photo">Student Photo (optional replacement)</label>
+            <input id="certificate-photo" key={`${editingId || "new"}-${form.student_id}`} type="file" accept="image/*"
+              disabled={!form.student_id} onChange={(event) => setPhotoFile(event.target.files?.[0] || null)} />
+            {students.find((student) => String(student.id) === form.student_id)?.photo_url && !photoFile && (
+              <button className="btn btn-ghost" type="button" onClick={async () => {
+                try {
+                  const student = students.find((item) => String(item.id) === form.student_id);
+                  const response = await fetch(resolveMediaUrl(student.photo_url));
+                  if (!response.ok) throw new Error("Photo unavailable");
+                  const blob = await response.blob();
+                  setPhotoFile(new File([blob], "student-photo", { type: blob.type }));
+                } catch {
+                  setStatus({ state: "error", message: "Unable to load existing photo. Please upload the photo again." });
+                }
+              }}>Rotate Existing Photo</button>
+            )}
+            <PhotoEditor file={photoFile} onChange={setPhotoFile} onBusyChange={setPhotoBusy} />
+          </div>
           <div className="form-actions">
-            <button className="btn btn-secondary" type="submit">
+            <button className="btn btn-secondary" type="submit" disabled={photoBusy || status.state === "loading"}>
               {editingId ? "Update Certificate" : "Save Certificate"}
             </button>
             {editingId && (
