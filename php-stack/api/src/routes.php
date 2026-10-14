@@ -1295,6 +1295,25 @@ function load_pdf_image(string $path): ?array
 
 function load_pdf_jpeg(string $path, array $info): ?array
 {
+    if (function_exists('exif_read_data') && function_exists('imagecreatefromjpeg')) {
+        $exif = @exif_read_data($path);
+        $orientation = (int)($exif['Orientation'] ?? 1);
+        if ($orientation >= 2 && $orientation <= 8) {
+            $image = @imagecreatefromjpeg($path);
+            if ($image) {
+                if (in_array($orientation, [2, 4, 5, 7], true)) imageflip($image, IMG_FLIP_HORIZONTAL);
+                $angle = [3 => 180, 4 => 180, 5 => 90, 6 => -90, 7 => -90, 8 => 90][$orientation] ?? 0;
+                if ($angle) $image = imagerotate($image, $angle, 0);
+                ob_start();
+                imagejpeg($image, null, 95);
+                $data = ob_get_clean();
+                $result = ['data' => $data, 'width' => imagesx($image), 'height' => imagesy($image),
+                    'colorSpace' => '/DeviceRGB', 'bits' => 8, 'filter' => '/DCTDecode'];
+                imagedestroy($image);
+                return $result;
+            }
+        }
+    }
     $data = @file_get_contents($path);
     if ($data === false) {
         return null;
@@ -2219,22 +2238,21 @@ function load_certificate_qr_image(string $payload): ?array
     if ($payload === '') {
         return null;
     }
-    $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&format=jpg&data=' . rawurlencode($payload);
-    $context = stream_context_create([
-        'http' => ['timeout' => 4, 'ignore_errors' => true],
-        'https' => ['timeout' => 4, 'ignore_errors' => true]
-    ]);
-    $data = @file_get_contents($qrUrl, false, $context);
-    if ($data === false || $data === '') {
-        return null;
+    require_once __DIR__ . '/qrlib.php';
+    $rows = QRcode::text($payload, false, QR_ECLEVEL_M);
+    // Include a four-module quiet zone; encode raw grayscale pixels for PDF.
+    $size = count($rows) + 8;
+    $pixels = str_repeat(chr(255), $size * 4);
+    foreach ($rows as $row) {
+        $pixels .= str_repeat(chr(255), 4);
+        for ($x = 0; $x < strlen($row); $x++) {
+            $pixels .= $row[$x] === '1' ? chr(0) : chr(255);
+        }
+        $pixels .= str_repeat(chr(255), 4);
     }
-    $tempPath = tempnam(sys_get_temp_dir(), 'pragati-qr-');
-    if (!$tempPath || @file_put_contents($tempPath, $data) === false) {
-        return null;
-    }
-    $image = load_pdf_image($tempPath);
-    @unlink($tempPath);
-    return $image;
+    $pixels .= str_repeat(chr(255), $size * 4);
+    return ['data' => gzcompress($pixels), 'width' => $size, 'height' => $size,
+        'colorSpace' => '/DeviceGray', 'bits' => 8, 'filter' => '/FlateDecode'];
 }
 
 function estimate_certificate_text_width(string $text, int $size, string $font = 'F3'): float

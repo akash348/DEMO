@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'php-stack/api/src/routes.php'
+      - 'php-stack/api/src/qrlib.php'
       - '.github/workflows/deploy-certificate-api.yml'
   workflow_dispatch:
 permissions:
@@ -38,14 +39,20 @@ jobs:
           server=pragati_1@103.86.176.240
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$server" 'mkdir -p ~/.pragati-deploy/backups'
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes php-stack/api/src/routes.php "$server:.pragati-deploy/routes.php"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes php-stack/api/src/qrlib.php "$server:.pragati-deploy/qrlib.php"
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$server" 'bash -se' <<'REMOTE'
           set -euo pipefail
           target="$HOME/public_html/pragati-api/src/routes.php"
           candidate="$HOME/.pragati-deploy/routes.php"
           php -l "$candidate"
+          php -l "$HOME/.pragati-deploy/qrlib.php"
+          php -r 'require getenv("HOME") . "/.pragati-deploy/routes.php"; $qr = load_certificate_qr_image("https://www.pragati-institute.co.in/verify?certificate=DEPLOY-CHECK"); if (!$qr || strlen(gzuncompress($qr["data"])) !== $qr["width"] * $qr["height"]) exit(1);'
           test -f "$target"
           backup="$HOME/.pragati-deploy/backups/routes-$(date +%Y%m%d-%H%M%S).php"
           cp -p "$target" "$backup"
+          cp "$HOME/.pragati-deploy/qrlib.php" "$HOME/public_html/pragati-api/src/qrlib.php.next"
+          chmod 644 "$HOME/public_html/pragati-api/src/qrlib.php.next"
+          mv -f "$HOME/public_html/pragati-api/src/qrlib.php.next" "$HOME/public_html/pragati-api/src/qrlib.php"
           cp "$candidate" "$target.next"
           chmod --reference="$target" "$target.next"
           mv -f "$target.next" "$target"
