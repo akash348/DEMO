@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import "./styles/main.css";
 import "./styles/mentor.css";
+import "./styles/header.css";
 
 const baseUrl =
   import.meta.env.BASE_URL !== "/" && import.meta.env.BASE_URL.endsWith("/")

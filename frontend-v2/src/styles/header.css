@@ -1,0 +1,38 @@
+.site-header .header-inner,
+.site-header .mentor-topbar-inner { width: min(1440px, 94%); }
+.site-header .header-inner { gap: 28px; flex-wrap: nowrap; }
+.site-header .brand { flex: 0 0 auto; max-width: 400px; min-width: 0; }
+.site-header .brand > div { min-width: 0; }
+.site-header .brand-logo { flex-shrink: 0; }
+.site-header .brand-subtitle,
+.site-header .brand-certification { white-space: normal; overflow-wrap: anywhere; }
+.site-header .nav-panel { flex: 0 0 auto; margin-left: auto; min-width: 0; gap: 16px; }
+.site-header .nav-links { gap: 10px; }
+.site-header .nav-link { padding-inline: 8px; }
+.site-header .menu-toggle { display: none; }
+
+@media (max-width: 1400px) {
+  body.mobile-menu-open { overflow: hidden; }
+  .site-header { z-index: 100; }
+  .site-header .mentor-topbar { display: none; }
+  .site-header .header-inner { min-height: 76px; padding: 10px 0; gap: 16px; }
+  .site-header .brand { max-width: calc(100% - 60px); flex: 0 1 auto; }
+  .site-header .brand-certification { display: none; }
+  .site-header .menu-toggle { display: inline-flex; flex: 0 0 44px; position: relative; z-index: 103; }
+  .site-header .nav-panel { display: none; position: fixed; top: 0; right: 0; left: auto; width: min(88vw, 360px); height: 100dvh; margin: 0; padding: 80px 20px 24px; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 12px; border: 0; border-radius: 0; background: #fff; overflow-y: auto; box-shadow: -18px 0 40px rgba(8,31,45,.2); z-index: 102; }
+  .site-header .nav-panel.open { display: flex; opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
+  .site-header .nav-links { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 5px; }
+  .site-header .nav-link,
+  .site-header .dropdown-toggle { width: 100%; min-height: 46px; padding: 11px 14px; text-align: left; justify-content: space-between; font-size: .98rem; }
+  .site-header .nav-dropdown { width: 100%; }
+  .site-header .nav-dropdown .dropdown-menu { position: static; width: 100%; min-width: 0; max-height: 0; margin: 0; padding: 0 8px; border: 0; overflow: hidden; display: grid; opacity: 1; visibility: visible; transform: none; pointer-events: none; background: #f4f9fb; box-shadow: none; }
+  .site-header .nav-dropdown.open .dropdown-menu { max-height: 460px; padding: 8px; pointer-events: auto; }
+  .site-header .header-cta { width: 100%; min-height: 46px; margin-top: 8px; }
+  .site-header .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 101; border: 0; background: rgba(8,31,45,.55); opacity: 0; visibility: hidden; pointer-events: none; }
+  .site-header .nav-backdrop.open { opacity: 1; visibility: visible; pointer-events: auto; }
+}
+@media (max-width: 480px) {
+  .site-header .brand-title { font-size: 1rem; }
+  .site-header .brand-subtitle { display: none; }
+  .site-header .brand-logo { width: 46px; height: 46px; flex-basis: 46px; }
+}
