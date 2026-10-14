@@ -512,7 +512,7 @@ function handle_students(string $method, array $segments, PDO $pdo, array $confi
         if (!isset($_FILES['photo'])) {
             bad_request('Student photo is required.');
         }
-        $upload = handle_upload($_FILES['photo'], 'students', $config);
+        $upload = handle_student_photo_upload($_FILES['photo'], $config);
         $branchName = trim($_POST['branch_name'] ?? '');
         if ($branchName === '') {
             $branchName = null;
@@ -595,7 +595,7 @@ function handle_students(string $method, array $segments, PDO $pdo, array $confi
             if (!isset($_FILES['photo'])) {
                 bad_request('Photo is required.');
             }
-            $upload = handle_upload($_FILES['photo'], 'students', $config);
+            $upload = handle_student_photo_upload($_FILES['photo'], $config);
             $stmt = $pdo->prepare('UPDATE students SET photo_url = :photo WHERE id = :id');
             $stmt->execute([':photo' => $upload['url'], ':id' => $studentId]);
             json_response(['photo_url' => $upload['url']]);
@@ -1268,6 +1268,38 @@ function pdf_fill_polygon(array $points): string
 function pdf_image(string $name, float $x, float $y, float $w, float $h): string
 {
     return "q {$w} 0 0 {$h} {$x} {$y} cm /{$name} Do Q\n";
+}
+
+function normalize_student_photo(string $path): void
+{
+    $info = @getimagesize($path);
+    if (!$info || $info[0] * $info[1] > 40000000) {
+        bad_request('Please upload a valid photo smaller than 40 megapixels.');
+    }
+    if (($info['mime'] ?? '') === 'image/jpeg') {
+        // The PDF image loader applies all EXIF rotations and mirror directions.
+        $jpeg = load_pdf_jpeg($path, $info);
+        $source = $jpeg ? @imagecreatefromstring($jpeg['data']) : false;
+    } else {
+        $source = @imagecreatefromstring(file_get_contents($path));
+    }
+    if (!$source) bad_request('Please upload a supported JPG, PNG, GIF or WebP photo.');
+    $image = imagecreatetruecolor(imagesx($source), imagesy($source));
+    imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
+    imagecopy($image, $source, 0, 0, 0, 0, imagesx($source), imagesy($source));
+    $saved = imagejpeg($image, $path, 95);
+    imagedestroy($image);
+    imagedestroy($source);
+    if (!$saved) bad_request('Unable to prepare the student photo.');
+}
+
+function handle_student_photo_upload(array $file, array $config): array
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) bad_request('File upload failed.');
+    normalize_student_photo($file['tmp_name']);
+    $file['name'] = pathinfo($file['name'], PATHINFO_FILENAME) . '.jpg';
+    $file['type'] = 'image/jpeg';
+    return handle_upload($file, 'students', $config);
 }
 
 function load_pdf_image(string $path): ?array
