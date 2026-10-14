@@ -46,6 +46,7 @@ jobs:
           candidate="$HOME/.pragati-deploy/routes.php"
           php -l "$candidate"
           php -l "$HOME/.pragati-deploy/qrlib.php"
+          php -r 'if (!function_exists("exif_read_data") || !function_exists("imagecreatefromjpeg")) { fwrite(STDERR, "Photo orientation requires EXIF and GD extensions.\n"); exit(1); } echo "Photo orientation extensions available.\n";'
           php -r 'require getenv("HOME") . "/.pragati-deploy/routes.php"; $qr = load_certificate_qr_image("https://www.pragati-institute.co.in/verify?certificate=DEPLOY-CHECK"); if (!$qr || strlen(gzuncompress($qr["data"])) !== $qr["width"] * $qr["height"]) exit(1);'
           test -f "$target"
           backup="$HOME/.pragati-deploy/backups/routes-$(date +%Y%m%d-%H%M%S).php"
